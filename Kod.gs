@@ -1,9 +1,7 @@
 /**
- * 14 AYAR ÇANTACI OTOMASYON SİSTEMİ - MASTER MOTORU (V65.2 - LORETTA ENTEGRASYONU)
- * - Dondurulmuş satır (Freeze Pane) birleştirme hatası (Bug) kalıcı olarak çözüldü.
- * - GIRIS_FORMU'na "Loretta" Onay Kutusu kolonu eklendi (E Sütunu).
- * - LORETTA_BORC sayfası tarih filtreli bir Dashboard'a dönüştürüldü.
- * - Loretta satışlarında satılan gram * 0.695 işlemiyle İşçilikli Maliyet kolonu otomatik hesaplanır.
+ * 14 AYAR ÇANTACI OTOMASYON SİSTEMİ - MASTER MOTORU (V66.1 - TARİH ONARIM BALYOZU)
+ * - Menüye "Eski Tarihleri Onar ve Sırala" butonu eklendi.
+ * - Bu fonksiyon, ISLEMLER sayfasındaki tüm metin tabanlı bozuk tarihleri gerçek tarihe dönüştürüp sıralar.
  * * 🟢 ÇİZİLEN BUTONLARA ATANACAK FONKSİYON (MAKRO) İSİMLERİ:
  * 1. "KAYDET" Butonu    ->  butonKaydiOnayla
  * 2. "ARŞİVLE" Butonu   ->  butonArsiveTasi
@@ -16,6 +14,8 @@ function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('💎 Çantacı Otomasyonu')
     .addItem('🚀 Sistemi Güncelle (Veriler Korunur)', 'masterSifirKurulum')
+    .addItem('📅 Eski Tarihleri Onar ve Sırala', 'tarihleriOnarVeSirala')
+    .addSeparator()
     .addItem('🔄 Dashboardları Manuel Senkronize Et', 'guncelleDashboards')
     .addSeparator()
     .addItem('🎨 Renkleri Onar (Geçmişi Düzelt)', 'gecmisiRenklendir')
@@ -27,6 +27,83 @@ function onOpen() {
 }
 
 /**
+ * ⚙️ TARİH ONARIM MOTORU (ESKİ KAYITLARI DÜZELTİR)
+ */
+function tarihleriOnarVeSirala() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("ISLEMLER");
+  
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert("⚠️ ISLEMLER sayfası bulunamadı.");
+    return;
+  }
+
+  var lr = sheet.getLastRow();
+  if (lr < 2) {
+    SpreadsheetApp.getUi().alert("⚠️ Sıralanacak veri bulunamadı.");
+    return;
+  }
+
+  // B sütunundaki tüm tarihleri al
+  var range = sheet.getRange(2, 2, lr - 1, 1);
+  var values = range.getValues();
+  var degisiklikYapildi = false;
+
+  for (var i = 0; i < values.length; i++) {
+    var val = values[i][0];
+    
+    // Eğer hücredeki veri metinse (string) zorla tarihe çevir
+    if (typeof val === 'string' && val.trim() !== "") {
+      var str = val.trim();
+      var d = null;
+      
+      // "15.07.2026" formatını yakala
+      if (str.indexOf('.') > -1) {
+        var parts = str.split('.');
+        if (parts.length === 3) {
+          d = new Date(parts[2], parseInt(parts[1], 10) - 1, parts[0]);
+        }
+      }
+      // "2026-07-07" formatını yakala
+      else if (str.indexOf('-') > -1) {
+        var parts = str.split('-');
+        if (parts.length === 3) {
+          d = new Date(parts[0], parseInt(parts[1], 10) - 1, parts[2]);
+        }
+      }
+
+      // Geçerli bir tarih oluştuysa diziye yaz
+      if (d && !isNaN(d.getTime())) {
+        values[i][0] = d;
+        degisiklikYapildi = true;
+      }
+    }
+  }
+
+  // Değişiklik varsa sayfaya geri yazdır
+  if (degisiklikYapildi) {
+    range.setValues(values);
+  }
+
+  // Sütunu kesin olarak Gün.Ay.Yıl formatına kilitle
+  range.setNumberFormat("dd.MM.yyyy");
+
+  // Ve nihayet, sayfayı B sütununa göre eskiden yeniye doğru sırala!
+  sheet.getRange(2, 1, lr - 1, 9).sort({column: 2, ascending: true});
+  
+  // Dashboardları ve Müşteri Özetini tetikle ki düzelen tarihler oraya da yansısın
+  guncelleDashboards();
+  hesaplaDonemselRapor();
+  var mOzetSheet = ss.getSheetByName("MUSTERI_OZET");
+  if(mOzetSheet) {
+    var aktifMusteri = mOzetSheet.getRange("B4").getValue();
+    if(aktifMusteri) hesaplaMusteriOzeti(aktifMusteri);
+  }
+
+  SpreadsheetApp.getUi().alert("✅ Harika!\n\nTüm eski inatçı metinler gerçek tarihe dönüştürüldü ve kayıtlar tarih sırasına dizildi.");
+}
+
+/**
  * ⚙️ AYARLAR SAYFASI
  */
 function kurAyarlarSayfasi(ss) {
@@ -35,7 +112,7 @@ function kurAyarlarSayfasi(ss) {
     sheet = ss.insertSheet("AYARLAR", 0); 
     sheet.setColumnWidth(1, 220);
     sheet.setColumnWidth(2, 350);
-    sheet.getRange("A1:B2").merge().setValue("⚙️ SİSTEM AYARLARI (V65.2)")
+    sheet.getRange("A1:B2").merge().setValue("⚙️ SİSTEM AYARLARI (V66.1)")
          .setBackground("#2c3e50").setFontColor("#ffffff").setFontWeight("bold")
          .setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(14);
     sheet.getRange("A3:B3").merge().setValue("GENEL AYARLAR").setBackground("#bdc3c7").setFontWeight("bold").setHorizontalAlignment("center");
@@ -137,7 +214,7 @@ function masterSifirKurulum() {
         var cType = (tempCariler[keys[k]].aPuan > tempCariler[keys[k]].mPuan) ? "ATÖLYE" : "MÜŞTERİ";
         var es = ss.getSheetByName(keys[k]);
         var durum = (es && es.getRange("Z1").getValue() === "ARŞİVLENDİ") ? "ARŞİVLENDİ" : "AKTİF";
-        var txtTarih = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd.MM.yyyy");
+        var txtTarih = new Date();
         exportData.push([txtTarih, keys[k], cType, durum, "", ""]);
       }
       if(exportData.length > 0) {
@@ -167,7 +244,6 @@ function masterSifirKurulum() {
     islemlerSheet.getRange("B:B").setNumberFormat("dd.MM.yyyy");
   }
 
-  // V65.2: LORETTA_BORC SAYFASI YAPILANDIRMASI (HATA DÜZELTİLDİ)
   var lorettaSheet = ss.getSheetByName("LORETTA_BORC");
   var oldLorettaData = [];
   if (lorettaSheet) {
@@ -179,7 +255,7 @@ function masterSifirKurulum() {
          oldLorettaData = lorettaSheet.getRange(8, 1, lorettaSheet.getLastRow() - 7, 6).getValues();
       }
     }
-    lorettaSheet.setFrozenRows(0); // 🟢 KRİTİK HATA ÇÖZÜMÜ: Birleştirme öncesi satırları çöz.
+    lorettaSheet.setFrozenRows(0);
     lorettaSheet.clear();
     lorettaSheet.getRange("A1:Z1000").clearDataValidations();
   } else {
@@ -209,9 +285,8 @@ function masterSifirKurulum() {
               .setBackground(kurumsalRenk).setFontColor(yaziRengi).setFontWeight("bold").setHorizontalAlignment("center");
   lorettaSheet.getRange("B:B").setNumberFormat("dd.MM.yyyy").setHorizontalAlignment("center");
   lorettaSheet.getRange("E:F").setNumberFormat("#,##0.00").setHorizontalAlignment("center");
-  lorettaSheet.setFrozenRows(7); // Tekrar güvenli şekilde dondur.
+  lorettaSheet.setFrozenRows(7);
 
-  // Loretta eski verileri formata uyarlama
   var exportLoretta = [];
   if (oldLorettaData.length > 0) {
     if (oldLorettaData[0].length === 5) {
@@ -230,7 +305,7 @@ function masterSifirKurulum() {
   }
 
   var girisSheet = ss.getSheetByName("GIRIS_FORMU") || ss.insertSheet("GIRIS_FORMU");
-  girisSheet.setFrozenRows(0); // 🟢 Güvenlik
+  girisSheet.setFrozenRows(0);
   girisSheet.clear();
   girisSheet.getRange("A1:G2").merge().setValue(ayarlar.baslik)
             .setBackground(kurumsalRenk).setFontColor(yaziRengi).setFontWeight("bold")
@@ -271,7 +346,7 @@ function masterSifirKurulum() {
   girisSheet.getRange("F19:G26").clearContent().clearDataValidations().setBackground(null);
   
   var mOzetSheet = ss.getSheetByName("MUSTERI_OZET") || ss.insertSheet("MUSTERI_OZET");
-  mOzetSheet.setFrozenRows(0); // 🟢 Güvenlik
+  mOzetSheet.setFrozenRows(0);
   mOzetSheet.clear();
   mOzetSheet.getRange("A1:Z1000").clearDataValidations(); 
   
@@ -325,10 +400,10 @@ function masterSifirKurulum() {
   mOzetSheet.getRange("E13:F").setNumberFormat("#,##0.00"); 
   mOzetSheet.getRange("G13:G").setNumberFormat("0");
   mOzetSheet.getRange("H13:I").setHorizontalAlignment("center");
-  mOzetSheet.setFrozenRows(12); // Tekrar dondur.
+  mOzetSheet.setFrozenRows(12);
 
   var donemRaporSheet = ss.getSheetByName("RAPOR_DONEMSEL") || ss.insertSheet("RAPOR_DONEMSEL");
-  donemRaporSheet.setFrozenRows(0); // 🟢 Güvenlik
+  donemRaporSheet.setFrozenRows(0);
   donemRaporSheet.clear();
   donemRaporSheet.getRange("A1:Z1000").clearDataValidations();
   donemRaporSheet.getRange("A1:G2").merge().setValue("📊 DÖNEMSEL PERFORMANS VE MİLYEM ANALİZ RAPORU")
@@ -353,7 +428,7 @@ function masterSifirKurulum() {
   donemRaporSheet.getRange("B7:D").setNumberFormat("#,##0.00");
   donemRaporSheet.getRange("E7:E").setNumberFormat("0");
   donemRaporSheet.getRange("F7:G").setNumberFormat("#,##0.00");
-  donemRaporSheet.setFrozenRows(6); // Tekrar dondur.
+  donemRaporSheet.setFrozenRows(6);
   
   donemRaporSheet.setColumnWidth(1, 200); donemRaporSheet.setColumnWidth(2, 140); donemRaporSheet.setColumnWidth(3, 140); 
   donemRaporSheet.setColumnWidth(4, 150); donemRaporSheet.setColumnWidth(5, 120); donemRaporSheet.setColumnWidth(6, 170); 
@@ -454,7 +529,7 @@ function masterSifirKurulum() {
   guncelleCariDropdown();
   guncelleDashboards();
   hesaplaDonemselRapor();
-  SpreadsheetApp.getUi().alert("💎 V65.2 Sistemi Güncellendi!\n\n- Loretta Onay Kutusu aktif edildi.\n- Loretta Borç sayfası filtreli Dashboard'a dönüştürüldü.");
+  SpreadsheetApp.getUi().alert("💎 V66.1 Sistemi Güncellendi!\n\n- Üst menüye 'Eski Tarihleri Onar ve Sırala' butonu eklendi.");
 }
 
 /**
@@ -509,7 +584,7 @@ function onEdit(e) {
           }
           if (islemSayisi === 0) {
             var cTip = sheet.getRange(row, 2).getDisplayValue().toString().trim().toUpperCase();
-            cKartlar.appendRow([Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd.MM.yyyy"), cariAdi, cTip, "AKTİF", 0, ""]);
+            cKartlar.appendRow([new Date(), cariAdi, cTip, "AKTİF", 0, ""]);
           }
         }
         SpreadsheetApp.flush();
@@ -585,7 +660,7 @@ function butonArsiveTasi() {
         }
       }
       if(islemSayisi === 0) {
-        cKartlar.appendRow([Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd.MM.yyyy"), cariAdi, tip, "ARŞİVLENDİ", 0, ""]);
+        cKartlar.appendRow([new Date(), cariAdi, tip, "ARŞİVLENDİ", 0, ""]);
       }
     }
     
@@ -833,7 +908,7 @@ function hesaplaMusteriOzeti(musteriAdi) {
           pSafHasSatisIade -= has;
         }
 
-        var displayTarih = (tarih instanceof Date) ? Utilities.formatDate(tarih, Session.getScriptTimeZone(), "dd.MM.yyyy") : tarih;
+        var displayTarih = (tarih instanceof Date) ? tarih : new Date(tarih);
         
         islemGecmisi.push([
           displayTarih, 
@@ -881,7 +956,7 @@ function hesaplaMusteriOzeti(musteriAdi) {
   mOzetSheet.getRange("H7").setValue(ortMilyem);
   mOzetSheet.getRange("H8").setValue(netKar);
   
-  var strTarih = sonIslemTarihi ? Utilities.formatDate(sonIslemTarihi, Session.getScriptTimeZone(), "dd.MM.yyyy") : "İşlem Yok";
+  var strTarih = sonIslemTarihi ? sonIslemTarihi : "İşlem Yok";
   mOzetSheet.getRange("H10").setValue(strTarih);
   
   if (islemGecmisi.length > 0) {
@@ -894,7 +969,7 @@ function hesaplaMusteriOzeti(musteriAdi) {
 }
 
 /**
- * 🛠️ KAYIT MOTORU 
+ * 🛠️ KAYIT MOTORU (V66 GERÇEK TARİH OBJESİ İLE KUSURSUZ SIRALAMA)
  */
 function prosesCokluFis() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -906,7 +981,7 @@ function prosesCokluFis() {
   var cariAdi = atolye || musteri; 
   
   var rawDate = girisSheet.getRange("B5").getValue();
-  var islemTarihi = Utilities.formatDate(new Date(rawDate), Session.getScriptTimeZone(), "dd.MM.yyyy");
+  var islemTarihi = new Date(rawDate);
   
   var formVerileri = girisSheet.getRange("A8:G17").getValues(); 
 
@@ -960,7 +1035,7 @@ function prosesCokluFis() {
       if (adetInput !== "" && !isNaN(parseInt(adetInput))) devirAdet = parseInt(adetInput);
     }
 
-    cKartlarSheet.appendRow([Utilities.formatDate(new Date(rawDate), Session.getScriptTimeZone(), "dd.MM.yyyy"), cariAdi, cType, "AKTİF", devirHas, devirAdet]);
+    cKartlarSheet.appendRow([islemTarihi, cariAdi, cType, "AKTİF", devirHas, devirAdet]);
     cKartlarSheet.getRange(cKartlarSheet.getLastRow(), 1, 1, 6).setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true);
 
     if (devirHas !== 0 || devirAdet !== "") {
@@ -1251,7 +1326,7 @@ function guncelleCariDropdown() {
     var durum = cariDurum[ad] || "AKTİF";
     if(!cariDurum[ad]) {
        var cTip = (cariPuanlar[ad].a > cariPuanlar[ad].m) ? "ATÖLYE" : "MÜŞTERİ";
-       var bugun = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd.MM.yyyy");
+       var bugun = new Date();
        cKartlar.appendRow([bugun, ad, cTip, "AKTİF", 0, ""]);
     }
 
