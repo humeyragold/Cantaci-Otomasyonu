@@ -1,7 +1,7 @@
 /**
- * 14 AYAR ÇANTACI OTOMASYON SİSTEMİ - MASTER MOTORU (V68 - DÖNEMSEL RAPOR REVİZYONU)
- * - RAPOR_DONEMSEL sayfasında Milyem filtresine virgülle çoklu seçim özelliği eklendi (Örn: 725, 735).
- * - RAPOR_DONEMSEL sayfasında listelenen verilerin en altına otomatik hesaplanan "GENEL TOPLAM" satırı eklendi.
+ * 14 AYAR ÇANTACI OTOMASYON SİSTEMİ - MASTER MOTORU (V69 - CARİ İSİM DEĞİŞTİRME MOTORU)
+ * - Menüye "✏️ Cari İsim Değiştir" butonu eklendi.
+ * - Seçilen carinin ismi tüm veritabanlarında (CARI_KARTLAR, ISLEMLER, LORETTA_BORC) eski fişleri bozmadan güncellenir.
  * * 🟢 ÇİZİLEN BUTONLARA ATANACAK FONKSİYON (MAKRO) İSİMLERİ:
  * 1. "KAYDET" Butonu    ->  butonKaydiOnayla
  * 2. "ARŞİVLE" Butonu   ->  butonArsiveTasi
@@ -14,16 +14,120 @@ function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('💎 Çantacı Otomasyonu')
     .addItem('🚀 Sistemi Güncelle (Veriler Korunur)', 'masterSifirKurulum')
+    .addSeparator()
+    .addItem('✏️ Cari İsim Değiştir', 'cariIsimDegistir')
     .addItem('📅 Eski Tarihleri Onar ve Sırala', 'tarihleriOnarVeSirala')
-    .addSeparator()
-    .addItem('🔄 Dashboardları Manuel Senkronize Et', 'guncelleDashboards')
-    .addSeparator()
     .addItem('🎨 Renkleri Onar (Geçmişi Düzelt)', 'gecmisiRenklendir')
     .addSeparator()
+    .addItem('🔄 Dashboardları Manuel Senkronize Et', 'guncelleDashboards')
     .addItem('🗑️ Hatalı Fiş İptal Et', 'fisIptalEt')
     .addSeparator()
     .addItem('📑 Sayfaları A\'dan Z\'ye Sırala', 'sayfalariSirala')
     .addToUi();
+}
+
+/**
+ * ✏️ CARİ İSİM DEĞİŞTİRME MOTORU (V69)
+ */
+function cariIsimDegistir() {
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Eski İsmi Sor
+  var promptEski = ui.prompt('✏️ Cari İsim Değiştir (Adım 1/2)', 'Lütfen değiştirmek istediğiniz MEVCUT (Eski) cari adını girin:\n(Örn: SAFİR)', ui.ButtonSet.OK_CANCEL);
+  if (promptEski.getSelectedButton() !== ui.Button.OK) return;
+  var eskiAd = promptEski.getResponseText().trim().toUpperCase();
+  if (!eskiAd) { ui.alert('⚠️ Hata', 'Geçerli bir isim girmediniz.', ui.ButtonSet.OK); return; }
+  
+  // Eski ismin CARI_KARTLAR'da olup olmadığını kontrol et
+  var cKartlar = ss.getSheetByName("CARI_KARTLAR");
+  if(!cKartlar) return;
+  var cData = cKartlar.getDataRange().getValues();
+  var isFound = false;
+  for(var i=1; i<cData.length; i++) {
+    if(cData[i][1].toString().trim().toUpperCase() === eskiAd) {
+      isFound = true; break;
+    }
+  }
+  if(!isFound) {
+     ui.alert('⚠️ Bulunamadı', 'Sistemde "' + eskiAd + '" adında bir cari bulunamadı.\nLütfen adını (boşluklara dikkat ederek) tam ve doğru yazdığınızdan emin olun.', ui.ButtonSet.OK);
+     return;
+  }
+
+  // 2. Yeni İsmi Sor
+  var promptYeni = ui.prompt('✏️ Cari İsim Değiştir (Adım 2/2)', 'Lütfen "' + eskiAd + '" için YENİ cari adını girin:\n(Örn: BOSNA)', ui.ButtonSet.OK_CANCEL);
+  if (promptYeni.getSelectedButton() !== ui.Button.OK) return;
+  var yeniAd = promptYeni.getResponseText().trim().toUpperCase();
+  if (!yeniAd) { ui.alert('⚠️ Hata', 'Geçerli bir isim girmediniz.', ui.ButtonSet.OK); return; }
+  if (yeniAd === eskiAd) { ui.alert('⚠️ Hata', 'Yeni isim eskisiyle aynı olamaz.', ui.ButtonSet.OK); return; }
+
+  // Yeni ismin halihazırda var olup olmadığını kontrol et (Çakışmayı önlemek için)
+  for(var j=1; j<cData.length; j++) {
+    if(cData[j][1].toString().trim().toUpperCase() === yeniAd) {
+      ui.alert('⚠️ Çakışma Önleme', 'Sistemde zaten "' + yeniAd + '" adında başka bir cari kayıtlı.\n\nİki hesabı yanlışlıkla birleştirmemek için işlem iptal edildi.', ui.ButtonSet.OK);
+      return;
+    }
+  }
+
+  // 3. Son Onay
+  var onay = ui.alert('⚠️ Son Onay', 'DİKKAT: "' + eskiAd + '" adlı carinin ismi, geçmişteki tüm fişlerde, borç bakiyelerinde ve raporlarda kalıcı olarak "' + yeniAd + '" olarak değiştirilecektir.\n\nOnaylıyor musunuz?', ui.ButtonSet.YES_NO);
+  if (onay !== ui.Button.YES) return;
+
+  var degisenSatirSayisi = 0;
+
+  // 4. CARI_KARTLAR sayfasını güncelle (B Sütunu)
+  var cRange = cKartlar.getRange(2, 2, cKartlar.getLastRow()-1, 1);
+  var cVals = cRange.getValues();
+  for(var k=0; k<cVals.length; k++) {
+     if(cVals[k][0].toString().trim().toUpperCase() === eskiAd) {
+        cVals[k][0] = yeniAd;
+     }
+  }
+  cRange.setValues(cVals);
+
+  // 5. ISLEMLER sayfasını güncelle (C Sütunu)
+  var islemler = ss.getSheetByName("ISLEMLER");
+  if(islemler && islemler.getLastRow() > 1) {
+    var iRange = islemler.getRange(2, 3, islemler.getLastRow()-1, 1);
+    var iVals = iRange.getValues();
+    for(var x=0; x<iVals.length; x++) {
+       if(iVals[x][0].toString().trim().toUpperCase() === eskiAd) {
+          iVals[x][0] = yeniAd;
+          degisenSatirSayisi++;
+       }
+    }
+    iRange.setValues(iVals);
+  }
+
+  // 6. LORETTA_BORC sayfasını güncelle (C Sütunu)
+  var loretta = ss.getSheetByName("LORETTA_BORC");
+  if(loretta && loretta.getLastRow() > 7) {
+    var lRange = loretta.getRange(8, 3, loretta.getLastRow()-7, 1);
+    var lVals = lRange.getValues();
+    for(var y=0; y<lVals.length; y++) {
+       if(lVals[y][0].toString().trim().toUpperCase() === eskiAd) {
+          lVals[y][0] = yeniAd;
+       }
+    }
+    lRange.setValues(lVals);
+  }
+
+  // 7. Sistem Güncellemelerini Tetikle
+  SpreadsheetApp.flush();
+  guncelleCariDropdown();
+  guncelleDashboards();
+  hesaplaDonemselRapor();
+  
+  // Eğer Müşteri Özet sayfasında eski isim seçiliyse onu da yeniye çevir ve hesapla
+  var mOzetSheet = ss.getSheetByName("MUSTERI_OZET");
+  if(mOzetSheet) {
+    if(mOzetSheet.getRange("B4").getValue().toString().trim().toUpperCase() === eskiAd) {
+       mOzetSheet.getRange("B4").setValue(yeniAd);
+       hesaplaMusteriOzeti(yeniAd);
+    }
+  }
+
+  ui.alert('✅ Değişim Başarılı!', 'Geçmişe dönük isim değişikliği sorunsuz tamamlandı.\n\nEski İsim: ' + eskiAd + '\nYeni İsim: ' + yeniAd + '\n\nGüncellenen Geçmiş Fiş Sayısı: ' + degisenSatirSayisi + ' adet.', ui.ButtonSet.OK);
 }
 
 /**
@@ -102,7 +206,7 @@ function kurAyarlarSayfasi(ss) {
     sheet = ss.insertSheet("AYARLAR", 0); 
     sheet.setColumnWidth(1, 220);
     sheet.setColumnWidth(2, 350);
-    sheet.getRange("A1:B2").merge().setValue("⚙️ SİSTEM AYARLARI (V68)")
+    sheet.getRange("A1:B2").merge().setValue("⚙️ SİSTEM AYARLARI (V69)")
          .setBackground("#2c3e50").setFontColor("#ffffff").setFontWeight("bold")
          .setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(14);
     sheet.getRange("A3:B3").merge().setValue("GENEL AYARLAR").setBackground("#bdc3c7").setFontWeight("bold").setHorizontalAlignment("center");
@@ -418,7 +522,6 @@ function masterSifirKurulum() {
   var rTipRule = SpreadsheetApp.newDataValidation().requireValueInList(["TÜMÜ", "MÜŞTERİ", "ATÖLYE"], true).build();
   donemRaporSheet.getRange("E3:G3").merge().setBackground("#ecf0f1").setHorizontalAlignment("center").setVerticalAlignment("middle").setDataValidation(rTipRule).setValue("TÜMÜ");
   
-  // V68: Milyem başlığı çoklu seçim bilgisiyle güncellendi
   donemRaporSheet.getRange("D4").setValue("Milyem Filtresi (Çoklu Seçim İçin Virgül Kullanın):").setFontWeight("bold").setHorizontalAlignment("right").setVerticalAlignment("middle").setFontColor("#c0392b");
   donemRaporSheet.getRange("E4:G4").merge().setBackground("#ecf0f1").setHorizontalAlignment("center").setVerticalAlignment("middle").setValue("TÜMÜ").setFontWeight("bold");
 
@@ -531,7 +634,7 @@ function masterSifirKurulum() {
   guncelleCariDropdown();
   guncelleDashboards();
   hesaplaDonemselRapor();
-  SpreadsheetApp.getUi().alert("💎 V68 Sistemi Güncellendi!\n\n- Rapor sayfasında çoklu Milyem seçimi ve Genel Toplam satırı aktif edildi.");
+  SpreadsheetApp.getUi().alert("💎 V69 Sistemi Güncellendi!\n\n- Üst menüye cari isimlerini geçmişe dönük hatasız değiştiren yeni modül eklendi.");
 }
 
 /**
@@ -707,7 +810,7 @@ function butonFormuTemizle() {
 }
 
 /**
- * 📊 B.I. MOTORU: KÂR İZOLASYONLU DÖNEMSEL PERFORMANS VE MİLYEM RAPORU (V68 GÜNCELLENDİ)
+ * 📊 B.I. MOTORU: KÂR İZOLASYONLU DÖNEMSEL PERFORMANS VE MİLYEM RAPORU
  */
 function hesaplaDonemselRapor() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -718,7 +821,6 @@ function hesaplaDonemselRapor() {
   var bitisVal = dSheet.getRange("B4").getValue();
   var tipFiltre = dSheet.getRange("E3").getValue().toString().trim().toUpperCase();
   
-  // V68: Milyem filtresini çoklu (virgüllü) hale getiriyoruz
   var milyemFiltreRaw = dSheet.getRange("E4").getValue().toString().trim();
   var milyemFiltre = milyemFiltreRaw.toUpperCase();
   var secilenMilyemler = milyemFiltreRaw.split(',').map(function(item) { return item.trim(); });
@@ -758,7 +860,6 @@ function hesaplaDonemselRapor() {
     if (baslangic && tTime < baslangic) continue;
     if (bitis && tTime > bitis) continue;
     
-    // V68: Milyem eşleştirme (Çoklu arama)
     if (milyemFiltre !== "TÜMÜ" && milyemFiltre !== "") {
       var isMatch = false;
       for(var z = 0; z < secilenMilyemler.length; z++) {
@@ -834,12 +935,10 @@ function hesaplaDonemselRapor() {
   var lr = dSheet.getLastRow();
   if (lr >= 7) {
     dSheet.getRange("A7:G" + lr).clearContent();
-    // Eski "Genel Toplam" satırı formatlarını silmek için
     dSheet.getRange("A7:G" + lr).setBackground(null).setFontColor(null).setFontWeight("normal");
   }
   
   if (matris.length > 0) {
-    // V68: Alt Kısım "Genel Toplam" Satırı Hesaplaması
     var tSatis = 0, tIade = 0, tNet = 0, tTahsilat = 0, tKar = 0;
     for(var r=0; r<matris.length; r++) {
       tSatis += parseFloat(matris[r][1]) || 0;
@@ -849,14 +948,12 @@ function hesaplaDonemselRapor() {
       tKar += parseFloat(matris[r][6]) || 0;
     }
     
-    // Matrise Toplam satırını ekle
     matris.push(["GENEL TOPLAM", tSatis, tIade, tNet, "---", tTahsilat, tKar]);
 
     dSheet.getRange(7, 1, matris.length, 7).setValues(matris)
           .setVerticalAlignment("middle")
           .setWrap(true);
           
-    // V68: Toplam satırını belirginleştir (Koyu Lacivert / Sarı)
     dSheet.getRange(6 + matris.length, 1, 1, 7).setBackground("#2c3e50").setFontColor("#f1c40f").setFontWeight("bold");
   }
 }
@@ -1408,7 +1505,6 @@ function guncelleCariDropdown() {
     var milyemListesi = Object.keys(benzersizMilyemler);
     milyemListesi.sort(); 
     milyemListesi.unshift("TÜMÜ"); 
-    // V68: Milyem veri doğrulamasını "Uyarı ver ama metin girmesine izin ver" (setAllowInvalid(true)) şeklinde esnettik!
     var mlyRule = SpreadsheetApp.newDataValidation().requireValueInList(milyemListesi, true).setAllowInvalid(true).build();
     dRaporSheet.getRange("E4:G4").setDataValidation(mlyRule);
   }
