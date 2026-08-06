@@ -1,7 +1,7 @@
-/**denen
- * 14 AYAR ÇANTACI OTOMASYON SİSTEMİ - MASTER MOTORU (V66.1 - TARİH ONARIM BALYOZU)
- * - Menüye "Eski Tarihleri Onar ve Sırala" butonu eklendi.
- * - Bu fonksiyon, ISLEMLER sayfasındaki tüm metin tabanlı bozuk tarihleri gerçek tarihe dönüştürüp sıralar.
+/**
+ * 14 AYAR ÇANTACI OTOMASYON SİSTEMİ - MASTER MOTORU (V68 - DÖNEMSEL RAPOR REVİZYONU)
+ * - RAPOR_DONEMSEL sayfasında Milyem filtresine virgülle çoklu seçim özelliği eklendi (Örn: 725, 735).
+ * - RAPOR_DONEMSEL sayfasında listelenen verilerin en altına otomatik hesaplanan "GENEL TOPLAM" satırı eklendi.
  * * 🟢 ÇİZİLEN BUTONLARA ATANACAK FONKSİYON (MAKRO) İSİMLERİ:
  * 1. "KAYDET" Butonu    ->  butonKaydiOnayla
  * 2. "ARŞİVLE" Butonu   ->  butonArsiveTasi
@@ -44,7 +44,6 @@ function tarihleriOnarVeSirala() {
     return;
   }
 
-  // B sütunundaki tüm tarihleri al
   var range = sheet.getRange(2, 2, lr - 1, 1);
   var values = range.getValues();
   var degisiklikYapildi = false;
@@ -52,19 +51,16 @@ function tarihleriOnarVeSirala() {
   for (var i = 0; i < values.length; i++) {
     var val = values[i][0];
     
-    // Eğer hücredeki veri metinse (string) zorla tarihe çevir
     if (typeof val === 'string' && val.trim() !== "") {
       var str = val.trim();
       var d = null;
       
-      // "15.07.2026" formatını yakala
       if (str.indexOf('.') > -1) {
         var parts = str.split('.');
         if (parts.length === 3) {
           d = new Date(parts[2], parseInt(parts[1], 10) - 1, parts[0]);
         }
       }
-      // "2026-07-07" formatını yakala
       else if (str.indexOf('-') > -1) {
         var parts = str.split('-');
         if (parts.length === 3) {
@@ -72,7 +68,6 @@ function tarihleriOnarVeSirala() {
         }
       }
 
-      // Geçerli bir tarih oluştuysa diziye yaz
       if (d && !isNaN(d.getTime())) {
         values[i][0] = d;
         degisiklikYapildi = true;
@@ -80,18 +75,13 @@ function tarihleriOnarVeSirala() {
     }
   }
 
-  // Değişiklik varsa sayfaya geri yazdır
   if (degisiklikYapildi) {
     range.setValues(values);
   }
 
-  // Sütunu kesin olarak Gün.Ay.Yıl formatına kilitle
   range.setNumberFormat("dd.MM.yyyy");
-
-  // Ve nihayet, sayfayı B sütununa göre eskiden yeniye doğru sırala!
   sheet.getRange(2, 1, lr - 1, 9).sort({column: 2, ascending: true});
   
-  // Dashboardları ve Müşteri Özetini tetikle ki düzelen tarihler oraya da yansısın
   guncelleDashboards();
   hesaplaDonemselRapor();
   var mOzetSheet = ss.getSheetByName("MUSTERI_OZET");
@@ -112,7 +102,7 @@ function kurAyarlarSayfasi(ss) {
     sheet = ss.insertSheet("AYARLAR", 0); 
     sheet.setColumnWidth(1, 220);
     sheet.setColumnWidth(2, 350);
-    sheet.getRange("A1:B2").merge().setValue("⚙️ SİSTEM AYARLARI (V66.1)")
+    sheet.getRange("A1:B2").merge().setValue("⚙️ SİSTEM AYARLARI (V68)")
          .setBackground("#2c3e50").setFontColor("#ffffff").setFontWeight("bold")
          .setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(14);
     sheet.getRange("A3:B3").merge().setValue("GENEL AYARLAR").setBackground("#bdc3c7").setFontWeight("bold").setHorizontalAlignment("center");
@@ -250,9 +240,9 @@ function masterSifirKurulum() {
     if (lorettaSheet.getLastRow() > 1) {
       var firstHead = lorettaSheet.getRange("A1").getValue();
       if (firstHead === "İşlem ID") {
-         oldLorettaData = lorettaSheet.getRange(2, 1, lorettaSheet.getLastRow() - 1, 5).getValues();
+         oldLorettaData = lorettaSheet.getRange(2, 1, lorettaSheet.getLastRow() - 1, Math.max(lorettaSheet.getLastColumn(), 8)).getValues();
       } else if (lorettaSheet.getLastRow() > 7) {
-         oldLorettaData = lorettaSheet.getRange(8, 1, lorettaSheet.getLastRow() - 7, 6).getValues();
+         oldLorettaData = lorettaSheet.getRange(8, 1, lorettaSheet.getLastRow() - 7, Math.max(lorettaSheet.getLastColumn(), 8)).getValues();
       }
     }
     lorettaSheet.setFrozenRows(0);
@@ -262,46 +252,56 @@ function masterSifirKurulum() {
     lorettaSheet = ss.insertSheet("LORETTA_BORC");
   }
 
-  lorettaSheet.getRange("A1:F2").merge().setValue("👑 LORETTA TEDARİK VE SATIŞ ÖZETİ")
+  lorettaSheet.getRange("A1:H2").merge().setValue("👑 LORETTA TEDARİK VE SATIŞ ÖZETİ")
               .setBackground("#8e44ad").setFontColor("#ffffff").setFontWeight("bold")
               .setHorizontalAlignment("center").setVerticalAlignment("middle").setFontSize(14);
   lorettaSheet.getRange("A3").setValue("Başlangıç Tarihi:").setFontWeight("bold").setHorizontalAlignment("right");
-  lorettaSheet.getRange("B3").setBackground("#fdfecd").setHorizontalAlignment("center").setDataValidation(takvimKurali);
+  lorettaSheet.getRange("B3:C3").merge().setBackground("#fdfecd").setHorizontalAlignment("center").setDataValidation(takvimKurali);
   lorettaSheet.getRange("A4").setValue("Bitiş Tarihi:").setFontWeight("bold").setHorizontalAlignment("right");
-  lorettaSheet.getRange("B4").setBackground("#fdfecd").setHorizontalAlignment("center").setDataValidation(takvimKurali);
+  lorettaSheet.getRange("B4:C4").merge().setBackground("#fdfecd").setHorizontalAlignment("center").setDataValidation(takvimKurali);
 
-  lorettaSheet.getRange("D3").setValue("Seçili Dönem Satılan Gram:").setFontWeight("bold").setHorizontalAlignment("right");
+  lorettaSheet.getRange("D3:E3").merge().setValue("Seçili Dönem Satılan Gram:").setFontWeight("bold").setHorizontalAlignment("right");
   var filterFormulaGram = '=IFERROR(SUMIFS(E8:E; D8:D; "SATIŞ"; B8:B; IF(B3<>"";">="&B3;">=1.1.1900"); B8:B; IF(B4<>"";"<="&B4;"<=1.1.2100")) - SUMIFS(E8:E; D8:D; "MÜŞTERİ İADESİ"; B8:B; IF(B3<>"";">="&B3;">=1.1.1900"); B8:B; IF(B4<>"";"<="&B4;"<=1.1.2100")); 0)';
-  lorettaSheet.getRange("E3:F3").merge().setFormula(filterFormulaGram)
+  lorettaSheet.getRange("F3:H3").merge().setFormula(filterFormulaGram)
               .setBackground("#f1c40f").setFontWeight("bold").setHorizontalAlignment("center").setNumberFormat("#,##0.00");
 
-  lorettaSheet.getRange("D4").setValue("İşçilikli Maliyet (Has):").setFontWeight("bold").setHorizontalAlignment("right");
-  var filterFormulaMaliyet = '=IFERROR(SUMIFS(F8:F; D8:D; "SATIŞ"; B8:B; IF(B3<>"";">="&B3;">=1.1.1900"); B8:B; IF(B4<>"";"<="&B4;"<=1.1.2100")) - SUMIFS(F8:F; D8:D; "MÜŞTERİ İADESİ"; B8:B; IF(B3<>"";">="&B3;">=1.1.1900"); B8:B; IF(B4<>"";"<="&B4;"<=1.1.2100")); 0)';
-  lorettaSheet.getRange("E4:F4").merge().setFormula(filterFormulaMaliyet)
+  lorettaSheet.getRange("D4:E4").merge().setValue("Seçili Dönem Toplam Has:").setFontWeight("bold").setHorizontalAlignment("right");
+  var filterFormulaHas = '=IFERROR(SUMIFS(G8:G; D8:D; "SATIŞ"; B8:B; IF(B3<>"";">="&B3;">=1.1.1900"); B8:B; IF(B4<>"";"<="&B4;"<=1.1.2100")) - SUMIFS(G8:G; D8:D; "MÜŞTERİ İADESİ"; B8:B; IF(B3<>"";">="&B3;">=1.1.1900"); B8:B; IF(B4<>"";"<="&B4;"<=1.1.2100")); 0)';
+  lorettaSheet.getRange("F4:H4").merge().setFormula(filterFormulaHas)
               .setBackground("#27ae60").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center").setNumberFormat("#,##0.00");
 
-  var lHeaders = ["İşlem ID", "Tarih", "Cari Adı", "İşlem Tipi", "Gram", "İşçilikli Maliyet (Has)"];
-  lorettaSheet.getRange(7, 1, 1, 6).setValues([lHeaders])
+  var lHeaders = ["İşlem ID", "Tarih", "Cari Adı", "İşlem Tipi", "İşlem Gramı", "Milyem", "Has", "Açıklama"];
+  lorettaSheet.getRange(7, 1, 1, 8).setValues([lHeaders])
               .setBackground(kurumsalRenk).setFontColor(yaziRengi).setFontWeight("bold").setHorizontalAlignment("center");
   lorettaSheet.getRange("B:B").setNumberFormat("dd.MM.yyyy").setHorizontalAlignment("center");
-  lorettaSheet.getRange("E:F").setNumberFormat("#,##0.00").setHorizontalAlignment("center");
+  lorettaSheet.getRange("E:E").setNumberFormat("#,##0.00").setHorizontalAlignment("center");
+  lorettaSheet.getRange("F:F").setNumberFormat("0").setHorizontalAlignment("center");
+  lorettaSheet.getRange("G:G").setNumberFormat("#,##0.00").setHorizontalAlignment("center");
   lorettaSheet.setFrozenRows(7);
 
   var exportLoretta = [];
   if (oldLorettaData.length > 0) {
-    if (oldLorettaData[0].length === 5) {
-       for(var x=0; x<oldLorettaData.length; x++) {
-           var r = oldLorettaData[x];
-           var gr = parseFloat(r[3]) || 0;
-           var ml = Math.round(gr * 0.695 * 100) / 100;
-           exportLoretta.push([r[0], r[1], r[2], "SATIŞ", gr, ml]);
+    var islemlerData = ss.getSheetByName("ISLEMLER").getDataRange().getValues();
+    var islemMap = {};
+    for (var m = 1; m < islemlerData.length; m++) {
+       islemMap[islemlerData[m][0]] = islemlerData[m]; 
+    }
+    
+    for(var x = 0; x < oldLorettaData.length; x++) {
+       var r = oldLorettaData[x];
+       var id = r[0];
+       if (!id) continue;
+       var islemRow = islemMap[id];
+       if (islemRow) {
+           exportLoretta.push([islemRow[0], islemRow[1], islemRow[2], islemRow[3], islemRow[4], islemRow[5], islemRow[6], islemRow[8]]);
+       } else {
+           var gr = parseFloat(r[4] || r[3]) || 0;
+           exportLoretta.push([id, r[1], r[2], r[3] || "SATIŞ", gr, "", r[5] || "", "Eski Kayıt"]);
        }
-    } else if (oldLorettaData[0].length === 6) {
-       exportLoretta = oldLorettaData;
     }
-    if (exportLoretta.length > 0) {
-       lorettaSheet.getRange(8, 1, exportLoretta.length, 6).setValues(exportLoretta);
-    }
+  }
+  if (exportLoretta.length > 0) {
+     lorettaSheet.getRange(8, 1, exportLoretta.length, 8).setValues(exportLoretta);
   }
 
   var girisSheet = ss.getSheetByName("GIRIS_FORMU") || ss.insertSheet("GIRIS_FORMU");
@@ -418,7 +418,8 @@ function masterSifirKurulum() {
   var rTipRule = SpreadsheetApp.newDataValidation().requireValueInList(["TÜMÜ", "MÜŞTERİ", "ATÖLYE"], true).build();
   donemRaporSheet.getRange("E3:G3").merge().setBackground("#ecf0f1").setHorizontalAlignment("center").setVerticalAlignment("middle").setDataValidation(rTipRule).setValue("TÜMÜ");
   
-  donemRaporSheet.getRange("D4").setValue("Milyem (XXX) Filtresi:").setFontWeight("bold").setHorizontalAlignment("right").setVerticalAlignment("middle").setFontColor("#c0392b");
+  // V68: Milyem başlığı çoklu seçim bilgisiyle güncellendi
+  donemRaporSheet.getRange("D4").setValue("Milyem Filtresi (Çoklu Seçim İçin Virgül Kullanın):").setFontWeight("bold").setHorizontalAlignment("right").setVerticalAlignment("middle").setFontColor("#c0392b");
   donemRaporSheet.getRange("E4:G4").merge().setBackground("#ecf0f1").setHorizontalAlignment("center").setVerticalAlignment("middle").setValue("TÜMÜ").setFontWeight("bold");
 
   var rpHeaders = ["Cari Adı", "Toplam Çıkış (Gr)", "Toplam İade (Gr)", "Net İşlem (Gr)", "Ort. Milyem", "Tahsilat/Ödeme (Has)", "Dönem Kârı (Has)"];
@@ -509,7 +510,8 @@ function masterSifirKurulum() {
   mOzetSheet.setColumnWidth(7, 90);  mOzetSheet.setColumnWidth(8, 250); mOzetSheet.setColumnWidth(9, 150);
 
   lorettaSheet.setColumnWidth(1, 140); lorettaSheet.setColumnWidth(2, 110); lorettaSheet.setColumnWidth(3, 160);
-  lorettaSheet.setColumnWidth(4, 120); lorettaSheet.setColumnWidth(5, 100); lorettaSheet.setColumnWidth(6, 150);
+  lorettaSheet.setColumnWidth(4, 120); lorettaSheet.setColumnWidth(5, 110); lorettaSheet.setColumnWidth(6, 90);
+  lorettaSheet.setColumnWidth(7, 110); lorettaSheet.setColumnWidth(8, 200);
 
   dMusteri.setColumnWidth(1, 180); dMusteri.setColumnWidth(2, 200); dMusteri.setColumnWidth(3, 180); 
   dMusteri.setColumnWidth(4, 190); dMusteri.setColumnWidth(5, 230); dMusteri.setColumnWidth(6, 140);
@@ -529,7 +531,7 @@ function masterSifirKurulum() {
   guncelleCariDropdown();
   guncelleDashboards();
   hesaplaDonemselRapor();
-  SpreadsheetApp.getUi().alert("💎 V66.1 Sistemi Güncellendi!\n\n- Üst menüye 'Eski Tarihleri Onar ve Sırala' butonu eklendi.");
+  SpreadsheetApp.getUi().alert("💎 V68 Sistemi Güncellendi!\n\n- Rapor sayfasında çoklu Milyem seçimi ve Genel Toplam satırı aktif edildi.");
 }
 
 /**
@@ -705,7 +707,7 @@ function butonFormuTemizle() {
 }
 
 /**
- * 📊 B.I. MOTORU: KÂR İZOLASYONLU DÖNEMSEL PERFORMANS VE MİLYEM RAPORU
+ * 📊 B.I. MOTORU: KÂR İZOLASYONLU DÖNEMSEL PERFORMANS VE MİLYEM RAPORU (V68 GÜNCELLENDİ)
  */
 function hesaplaDonemselRapor() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -715,7 +717,12 @@ function hesaplaDonemselRapor() {
   var baslangicVal = dSheet.getRange("B3").getValue();
   var bitisVal = dSheet.getRange("B4").getValue();
   var tipFiltre = dSheet.getRange("E3").getValue().toString().trim().toUpperCase();
-  var milyemFiltre = dSheet.getRange("E4").getValue().toString().trim();
+  
+  // V68: Milyem filtresini çoklu (virgüllü) hale getiriyoruz
+  var milyemFiltreRaw = dSheet.getRange("E4").getValue().toString().trim();
+  var milyemFiltre = milyemFiltreRaw.toUpperCase();
+  var secilenMilyemler = milyemFiltreRaw.split(',').map(function(item) { return item.trim(); });
+  
   var baslangic = (baslangicVal && !isNaN(new Date(baslangicVal))) ? new Date(baslangicVal).setHours(0,0,0,0) : null;
   var bitis = (bitisVal && !isNaN(new Date(bitisVal))) ? new Date(bitisVal).setHours(23,59,59,999) : null;
 
@@ -750,8 +757,17 @@ function hesaplaDonemselRapor() {
     var tTime = new Date(tarih).getTime();
     if (baslangic && tTime < baslangic) continue;
     if (bitis && tTime > bitis) continue;
+    
+    // V68: Milyem eşleştirme (Çoklu arama)
     if (milyemFiltre !== "TÜMÜ" && milyemFiltre !== "") {
-      if (islemMilyemi !== milyemFiltre) continue;
+      var isMatch = false;
+      for(var z = 0; z < secilenMilyemler.length; z++) {
+        if(islemMilyemi === secilenMilyemler[z]) { 
+          isMatch = true; 
+          break; 
+        }
+      }
+      if(!isMatch) continue;
     }
 
     if (!masterData[cari]) {
@@ -814,12 +830,34 @@ function hesaplaDonemselRapor() {
     if (b[3] !== a[3]) return b[3] - a[3]; 
     return b[6] - a[6]; 
   });
+  
   var lr = dSheet.getLastRow();
-  if (lr >= 7) dSheet.getRange("A7:G" + lr).clearContent();
+  if (lr >= 7) {
+    dSheet.getRange("A7:G" + lr).clearContent();
+    // Eski "Genel Toplam" satırı formatlarını silmek için
+    dSheet.getRange("A7:G" + lr).setBackground(null).setFontColor(null).setFontWeight("normal");
+  }
+  
   if (matris.length > 0) {
+    // V68: Alt Kısım "Genel Toplam" Satırı Hesaplaması
+    var tSatis = 0, tIade = 0, tNet = 0, tTahsilat = 0, tKar = 0;
+    for(var r=0; r<matris.length; r++) {
+      tSatis += parseFloat(matris[r][1]) || 0;
+      tIade += parseFloat(matris[r][2]) || 0;
+      tNet += parseFloat(matris[r][3]) || 0;
+      tTahsilat += parseFloat(matris[r][5]) || 0;
+      tKar += parseFloat(matris[r][6]) || 0;
+    }
+    
+    // Matrise Toplam satırını ekle
+    matris.push(["GENEL TOPLAM", tSatis, tIade, tNet, "---", tTahsilat, tKar]);
+
     dSheet.getRange(7, 1, matris.length, 7).setValues(matris)
           .setVerticalAlignment("middle")
           .setWrap(true);
+          
+    // V68: Toplam satırını belirginleştir (Koyu Lacivert / Sarı)
+    dSheet.getRange(6 + matris.length, 1, 1, 7).setBackground("#2c3e50").setFontColor("#f1c40f").setFontWeight("bold");
   }
 }
 
@@ -969,7 +1007,7 @@ function hesaplaMusteriOzeti(musteriAdi) {
 }
 
 /**
- * 🛠️ KAYIT MOTORU (V66 GERÇEK TARİH OBJESİ İLE KUSURSUZ SIRALAMA)
+ * 🛠️ KAYIT MOTORU 
  */
 function prosesCokluFis() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1081,8 +1119,7 @@ function prosesCokluFis() {
                    .setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true);
       
       if (lorettaCheck && lorettaSheet && (islemTipi === "SATIŞ" || islemTipi === "MÜŞTERİ İADESİ")) {
-        var hasMaliyet = Math.round(gram14K * 0.695 * 100) / 100;
-        lorettaSheet.appendRow([uniqueID, islemTarihi, cariAdi, islemTipi, gram14K > 0 ? gram14K : 0, hasMaliyet]);
+        lorettaSheet.appendRow([uniqueID, islemTarihi, cariAdi, islemTipi, gram14K > 0 ? gram14K : "", milyem, hasAltin, aciklama]);
       }
       
       veriEklendiMi = true;
@@ -1371,7 +1408,8 @@ function guncelleCariDropdown() {
     var milyemListesi = Object.keys(benzersizMilyemler);
     milyemListesi.sort(); 
     milyemListesi.unshift("TÜMÜ"); 
-    var mlyRule = SpreadsheetApp.newDataValidation().requireValueInList(milyemListesi, true).build();
+    // V68: Milyem veri doğrulamasını "Uyarı ver ama metin girmesine izin ver" (setAllowInvalid(true)) şeklinde esnettik!
+    var mlyRule = SpreadsheetApp.newDataValidation().requireValueInList(milyemListesi, true).setAllowInvalid(true).build();
     dRaporSheet.getRange("E4:G4").setDataValidation(mlyRule);
   }
 }
