@@ -1,4 +1,4 @@
-/**
+/**denen
  * 14 AYAR ÇANTACI OTOMASYON SİSTEMİ - MASTER MOTORU (V66.1 - TARİH ONARIM BALYOZU)
  * - Menüye "Eski Tarihleri Onar ve Sırala" butonu eklendi.
  * - Bu fonksiyon, ISLEMLER sayfasındaki tüm metin tabanlı bozuk tarihleri gerçek tarihe dönüştürüp sıralar.
